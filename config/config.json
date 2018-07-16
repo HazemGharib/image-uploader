@@ -1,3 +1,4 @@
 {
-	"uploadLocation":    "./Storage/"
+    "uploadLocation": "./Storage/",
+    "zippedImagesLocation": "./Storage/Zipped"
 }

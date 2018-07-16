@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const fileUpload = require('express-fileupload');
 
+const decompress = require('decompress');
+
 const port = process.env.PORT || 3000;
 const config = JSON.parse(fs.readFileSync('config/config.json', 'utf8'));
 
@@ -76,7 +78,7 @@ function checkIfFileExists(req, res) {
 
 function getFileObject(req) {
     // Check if there are more than one file object and pick only one file
-    return req.files.file.length == 1 ? req.files.file : req.files.file[0];
+    return req.files.file.length > 1 ? req.files.file[0] : req.files.file;
 }
 
 function createDirIfNotExist(path) {
@@ -85,10 +87,10 @@ function createDirIfNotExist(path) {
     }
 }
 
-function checkIfImageMimeType(req, res, imageFile) {
-    let mimeType = imageFile.mimetype;
+function checkMimeType(req, res, uploadedFile, mimeType) {
+    let imageMimeType = uploadedFile.mimetype;
      // Check for image mime type
-     if(! mimeType.includes('image'))
+     if(! imageMimeType.includes(mimeType))
      {
          console.log(req.files.file);
          res.statusCode = 400;
@@ -97,8 +99,8 @@ function checkIfImageMimeType(req, res, imageFile) {
      }
 }
 
-function generateUniquePath(imageFile) {
-    let extension = path.extname(imageFile.name);
+function generateUniquePath(uploadedFile) {
+    let extension = path.extname(uploadedFile.name);
 
     // Create storage directory if not existed
     createDirIfNotExist(config.uploadLocation);
@@ -107,12 +109,33 @@ function generateUniquePath(imageFile) {
     return config.uploadLocation + guid() + extension;
 }
 
-function storeImage(res, imageFile, uniquePath) {
-    imageFile.mv(uniquePath, function(err) {
+function storeFile(res, uploadedFile, uniquePath) {
+    uploadedFile.mv(uniquePath, function(err) {
         if (err)
-        return res.status(500).send(err);
-    
-        res.send(uniquePath);
+        {
+            console.log(err);
+            res.statusCode = 500;
+            return res.send(err);
+        }
+    });
+}
+
+function decompressFile(uniquePath, callback) {
+    let uniqueImageLocations = [];
+
+    decompress(uniquePath, config.zippedImagesLocation, {
+        map: file => {
+            let filePath = guid() + path.extname(file.path);
+            file.path = filePath;
+            uniqueImageLocations.push(path.join(config.zippedImagesLocation,filePath));
+            return file;
+        }    
+    })
+    .then(files => {
+        callback(uniqueImageLocations);
+    }).catch((err) => {
+        console.log(err);
+        callback(uniqueImageLocations);
     });
 }
 
@@ -157,13 +180,40 @@ app.post('/uploadImage', (req, res) => {
     let imageFile = getFileObject(req);
 
     // Check for image mime type
-    checkIfImageMimeType(req, res, imageFile);
+    checkMimeType(req, res, imageFile, 'image');
 
     // Generate unique path
     let uniquePath = generateUniquePath(imageFile);
 
     // Store image file
-    storeImage(res, imageFile, uniquePath);
+    storeFile(res, imageFile, uniquePath);
+    
+    // Return unique path
+    res.send(uniquePath);
+});
+
+app.post('/uploadBulk', (req, res) => {
+
+    checkIfFileExists(req, res);
+
+    // Get zip file object from request
+    let zipFile = getFileObject(req);
+    
+    // Check for zip mime type
+    checkMimeType(req, res, zipFile, 'zip');
+
+    // Generate unique path
+    let uniquePath = generateUniquePath(zipFile);
+
+    // Store zip file
+    storeFile(res, zipFile, uniquePath);
+    
+    // Decompress file
+    decompressFile(uniquePath, (uniqueImageLocations) => {
+        // Return unique image locations
+        res.send(uniqueImageLocations);
+    });
+    
 });
 
 app.listen(port, () => {
