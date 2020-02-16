@@ -1,5 +1,4 @@
 node_modules/
 Storage/
 server.log
-ssh
-ssh.pub
+.vscode/

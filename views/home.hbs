@@ -7,10 +7,16 @@
 </head>
 
 <body>
-    {{> header}}
-    <p>{{screamIt welcomeMessage}}</p>
-
-    {{> footer}}
+    <p>
+    Send a POST request to these 2 endpoints:
+    <br>
+    <ul>
+        <li>http://localhost:3000/uploadImage</li>
+        <li>http://localhost:3000/uploadBulk</li>
+    </ul>
+    
+    <b style="color: crimson;">*Make sure to send a parameter named 'file' in the body request</b>
+    </p>
 </body>
 
 </html>
